@@ -7,11 +7,11 @@ public class SocketClient
 {
     public static int Main(String[] args)
     {
-        StartISSClient();
+        StartIOSClient();
         return 0;
     }
 
-    public static int Initialize(byte[] msg)
+    public static int Initialize(byte[] buffer)
     {
         //  Header                  Byte Order  Floating Point          Byte  Spare                   Trailer
         //{ 0x49, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x49 };
@@ -22,71 +22,143 @@ public class SocketClient
         byte[] shbyte = BitConverter.GetBytes(shtype);
 
         //Header
-        msg[0]  = 0x49;
+        buffer[0]  = 0x49;
 
         for (int i = 1; i < 4 ; i++)
         {
-            msg[i] = 0x00;
+            buffer[i] = 0x00;
         }
 
         //Byte Order
         for (int i = 4; i < 6; i++)
         {
-            msg[i] = shbyte[i - 4];
+            buffer[i] = shbyte[i - 4];
         }
 
         //floating point
         for (int i = 6; i < 10; i++)
         {
-            msg[i] = fbyte[i - 6];
+            buffer[i] = fbyte[i - 6];
         }
 
         //Integer Size
         byte[] isize= BitConverter.GetBytes(sizeof(int));
-        msg[10]  = isize[0];
+        buffer[10]  = isize[0];
 
         //Spare & Trailer
         for (int i = 11; i < 15; i++)
         {
-            msg[i] = 0x00;
+            buffer[i] = 0x00;
         }
-        msg[15] = 0x49;
+        buffer[15] = 0x49;
         return 16;
     }
 
-    public static int addDict(byte[] msg, int listType, int varIndex, int VarType, int numDimen, int sizeDimen, string varName)
+    public static int addDict(byte[] buffer, int listType, int varIndex, int VarType, int numDimen, int sizeDimen, string varName)
     {
-        int packetSize = 4;
+        int packetSize  = 4;
+        int varNameSize = 0;
         
-        //Header
-        msg[0] = 0x41;
+        //Header starts at byte 0
+        buffer[0] = 0x41;
         for (int i = 1; i < 4; i++)
         {
-            msg[i] = 0x00;
+            buffer[i] = 0x00;
         }
 
-        //VarName
+        //List Type starts at byte 8
+
+
+        //Variable Index starts at byte 9 
+        byte[] vibyte = BitConverter.GetBytes(varIndex);
+        for (int i = 9; i < 13; i++) { buffer[i] = vibyte[i-9]; }
+
+        //Variable Type starts at byte 13
+
+        //# of Dimensions starts at byte 17
+
+        //Dimension Size starts at byte 18
+
+        //Vriable Name Length()
+
+        //Variable Name (unknown start index)
+        while () { }
+
+        //Variable Name Length (unknown start index)
+
+        //Message Size starts at byte 4
+        byte[] bsize = BitConverter.GetBytes(packetSize);
+        for (int i = 4; i < 8; i++) { buffer[i] = bsize[i-4]; }
+
         return packetSize;
     }
 
-    public static void StartISSClient()
+    public static int addVarUpdate()
     {
-        byte[] bytes = new byte[1024];
+        int packetSize = 0;
+
+        return packetSize;
+    }
+
+    public static int openVarUpdatePage()
+    {
+        int packetSize = 0;
+
+        return packetSize;
+    }
+
+    public static int closeVarUpdatePage()
+    {
+        int packetSize = 0;
+
+        return packetSize;
+    }
+
+    public static int updateRequest(byte[] buffer)
+    {
+        buffer[0] = 0x55; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00;
+        return 9;
+    }
+    public static int setVar(byte[] buffer)
+    {
+        int packetSize = 4;
+        buffer[0] = 0x53; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00;  
+
+        return packetSize;
+    }
+
+    public static int exitMsg(byte[] buffer)
+    {
+        buffer[0] = 0x45; 
+        
+        for (int i=1; i < 8; i++)
+        {
+            buffer[i] = 0x00;
+        }
+        return 8;
+    }
+
+    public static void StartIOSClient()
+    {
+        byte[] bytes = new byte[2048];
 
         try
         {
             // Connect to a Remote server
-            IPHostEntry host = Dns.GetHostEntry("localhost");
-            IPAddress ipAddress = host.AddressList[0];
-            IPEndPoint remoteEP = new IPEndPoint(ipAddress, 4420);
+            //IPHostEntry host    = Dns.GetHostEntry("localhost");
+            IPAddress ip        = IPAddress.Parse("127.0.0.1");//host.AddressList[0];
+            IPEndPoint remoteEP = new IPEndPoint(ip, 4420);
 
             // Create a TCP/IP  socket.
-            Socket sender = new Socket(ipAddress.AddressFamily,
+            Socket sender = new Socket(ip.AddressFamily,
                 SocketType.Stream, ProtocolType.Tcp);
 
             // Connect the socket to the remote endpoint. Catch any errors.
             try
             {
+                Console.WriteLine("attempt to connect to {0}",
+                    ip.ToString());
+
                 // Connect to Remote EndPoint
                 sender.Connect(remoteEP);
 
@@ -95,23 +167,16 @@ public class SocketClient
                 //byte[] msg = Encoding.ASCII.GetBytes("This is a test<EOF>");
 
                 // Send the data through the socket.
-                byte[] msg = new byte[30];
+                byte[] msg = new byte[16];
+
                 int msgSize = Initialize(msg);
-                byte[] endOfFile = Encoding.ASCII.GetBytes("<EOF>");
-                for (int i = 0; i < endOfFile.Length; i++)
-                {
-                    msg[msgSize + i] = endOfFile[i];
-                }
                 int bytesSent = sender.Send(msg);
 
-                // Receive the response from the remote device.
-                int bytesRec = sender.Receive(bytes);
-                Console.WriteLine("Echoed test = {0}",
-                    Encoding.ASCII.GetString(bytes, 0, bytesRec));
-
                 // Release the socket.
-                sender.Shutdown(SocketShutdown.Both);
-                sender.Close();
+                //exitMsg(msg);
+                //sender.Send(msg); 
+                //sender.Shutdown(SocketShutdown.Both);
+                //sender.Close();
 
             }
             catch (ArgumentNullException ane)
