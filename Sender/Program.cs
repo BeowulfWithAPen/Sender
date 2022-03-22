@@ -2,7 +2,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-//Important Note: I have assumed that Message Header and 'Message Length' var does not count towards overall Messge Length
+//Important Note: I have assumed that Message Header and 'Message Length' var does not count towards the Message Body Length Variable
 
 public enum msg_Type
 {
@@ -46,35 +46,32 @@ public class SocketClient
         byte[] lenBytes = BitConverter.GetBytes(length);
         for (int i = 4; i < 8; i++)
         {
-            buffer[i] = lenBytes[i-4];
+            buffer[i] = lenBytes[i - 4];
         }
         return 1;
     } 
 
     public static int Initialize(byte[] buffer)
     {
-        //  Header                  Byte Order  Floating Point          Byte  Spare                   Trailer
-        //{ 0x49, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x49 };
-
         int    packetSize = 16;
         float  ftype      = 1;
         short  shtype     = 1;
         byte[] fbyte      = BitConverter.GetBytes(ftype);
         byte[] shbyte     = BitConverter.GetBytes(shtype);
 
-        //Byte Order
+       //Byte Order
         for (int i = 4; i < 6; i++)
         { buffer[i] = shbyte[i - 4]; }
 
-        //floating point
+       //floating point
         for (int i = 6; i < 10; i++)
         { buffer[i] = fbyte[i - 6]; }
 
-        //Integer Size
+       //Integer Size
         byte[] isize = BitConverter.GetBytes(sizeof(int));
         buffer[10]   = isize[0];
 
-        //Spare & Trailer
+       //Spare & Trailer
         for (int i = 11; i < 15; i++)
         { buffer[i] = 0x00; }
         buffer[15] = 0x49;
@@ -133,13 +130,13 @@ public class SocketClient
     {
         int packetSize = 8;
 
-        // List Type
+       // List Type
         if (listType == 1)
             { buffer[packetSize++] = 0x01; }
         else
             { buffer[packetSize++] = 0x00; }
 
-        // Page ID
+       // Page ID
         byte[] pidBytes = BitConverter.GetBytes(pageId);
         for (int i = 0; i < 4; i++) { buffer[packetSize++] = pidBytes[i]; }
 
@@ -208,6 +205,7 @@ public class SocketClient
 
         return packetSize;
     }
+
     public static int setVar(byte[] buffer, int listType, int varIndex, int numDimen, int[] dimen, int valueSize, int value)
     {
         int packetSize = 0;
@@ -240,7 +238,8 @@ public class SocketClient
         byte[] valsBytes = BitConverter.GetBytes(valueSize);
         for (int i = 0; i < 4; i++) { buffer[packetSize++] = valsBytes[i]; }
         
-       
+       // Value
+        
 
         if (fillHeader(buffer, msg_Type.SetVar, packetSize) < 0) { return -1; }
 
@@ -258,12 +257,11 @@ public class SocketClient
 
     public static void StartIOSClient()
     {
-        byte[] bytes = new byte[1024];
+        byte[] buff_out = new byte[1024];
+        byte[] buff_in  = new byte[1024];
 
         try
         {
-            // Connect to a Remote server
-            //IPHostEntry host    = Dns.GetHostEntry("localhost");
             IPAddress ip        = IPAddress.Parse("127.0.0.1");//host.AddressList[0];
             IPEndPoint remoteEP = new IPEndPoint(ip, 4420);
 
@@ -271,7 +269,6 @@ public class SocketClient
             Socket sender = new Socket(ip.AddressFamily,
                 SocketType.Stream, ProtocolType.Tcp);
 
-            // Connect the socket to the remote endpoint. Catch any errors.
             try
             {
                 Console.WriteLine("attempt to connect to {0}",
@@ -282,19 +279,22 @@ public class SocketClient
 
                 Console.WriteLine("Socket connected to {0}",
                     sender.RemoteEndPoint.ToString());
-                //byte[] msg = Encoding.ASCII.GetBytes("This is a test<EOF>");
 
                 // Send the data through the socket.
-                byte[] msg = new byte[16];
+                int msgSize = Initialize(buff_out);
 
-                int msgSize = Initialize(msg);
-                int bytesSent = sender.Send(msg);
+                byte[] buffer = new byte[msgSize];
+                Array.Copy(buff_out, msgSize, buffer, 0, msgSize);
+                Console.WriteLine(buff_out[0]);
 
-                // Release the socket.
-                //exitMsg(msg);
-                //sender.Send(msg); 
-                //sender.Shutdown(SocketShutdown.Both);
-                //sender.Close();
+                int bytesSent = sender.Send(buffer);
+
+                //msgSize   = exitMsg(buff_out);
+                //bytesSent = sender.Send(buff_out); 
+
+                // Release the socket
+                sender.Shutdown(SocketShutdown.Both);
+                sender.Close();
 
             }
             catch (ArgumentNullException ane)
