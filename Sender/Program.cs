@@ -20,7 +20,7 @@ public class SocketClient
 {
     public static int Main(String[] args)
     {
-        StartIOSClient();
+        StartIOSClient(0);
         return 0;
     }
 
@@ -28,18 +28,18 @@ public class SocketClient
     {
         switch (msgType)
         {
-            case msg_Type.Initial       : buffer[0] = 0x49; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
-            case msg_Type.AddDict       : buffer[0] = 0x41; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
-            case msg_Type.AddVarUpdate  : buffer[0] = 0x50; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
-            case msg_Type.OpenVarUpdate : buffer[0] = 0x4F; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
-            case msg_Type.CloseVarUpdate: buffer[0] = 0x43; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
-            case msg_Type.UpdateRequest : buffer[0] = 0x55; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
-            case msg_Type.SetVar        : buffer[0] = 0x53; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
-            case msg_Type.Exit          : buffer[0] = 0x45; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+            case msg_Type.Initial        : buffer[0] = 0x49; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+            case msg_Type.AddDict        : buffer[0] = 0x41; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+            case msg_Type.AddVarUpdate   : buffer[0] = 0x50; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+            case msg_Type.OpenVarUpdate  : buffer[0] = 0x4F; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+            case msg_Type.CloseVarUpdate : buffer[0] = 0x43; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+            case msg_Type.UpdateRequest  : buffer[0] = 0x55; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+            case msg_Type.SetVar         : buffer[0] = 0x53; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+            case msg_Type.Exit           : buffer[0] = 0x45; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
             default: break;
         }
 
-        if (msgType == msg_Type.Initial) { return 1; }
+        if (msgType == msg_Type.Initial) { return 1;  }
         if (length > 1024)               { return -1; }
 
         length = length - 8; // accounts for header & length 
@@ -49,29 +49,29 @@ public class SocketClient
             buffer[i] = lenBytes[i - 4];
         }
         return 1;
-    } 
+    }
 
     public static int Initialize(byte[] buffer)
     {
-        int    packetSize = 16;
-        float  ftype      = 1;
-        short  shtype     = 1;
-        byte[] fbyte      = BitConverter.GetBytes(ftype);
-        byte[] shbyte     = BitConverter.GetBytes(shtype);
+        int packetSize = 16;
+        float ftype = 1;
+        short shtype = 1;
+        byte[] fbyte = BitConverter.GetBytes(ftype);
+        byte[] shbyte = BitConverter.GetBytes(shtype);
 
-       //Byte Order
+        //Byte Order
         for (int i = 4; i < 6; i++)
         { buffer[i] = shbyte[i - 4]; }
 
-       //floating point
+        //floating point
         for (int i = 6; i < 10; i++)
         { buffer[i] = fbyte[i - 6]; }
 
-       //Integer Size
+        //Integer Size
         byte[] isize = BitConverter.GetBytes(sizeof(int));
-        buffer[10]   = isize[0];
+        buffer[10] = isize[0];
 
-       //Spare & Trailer
+        //Spare & Trailer
         for (int i = 11; i < 15; i++)
         { buffer[i] = 0x00; }
         buffer[15] = 0x49;
@@ -83,35 +83,34 @@ public class SocketClient
 
     public static int addDict(byte[] buffer, int listType, int varIndex, int VarType, int numDimen, int[] sizeDimen, string varName)
     {
-        int packetSize  = 18;
+        int packetSize  = 8;
 
        // ERROR Handling
         if (numDimen != sizeDimen.Length) { return -1; }
         if (varName.Length > 15)          { return -1; }
 
-       //List Type starts at byte 8
+       // List Type starts at byte 8
         if (listType == 1)
-            { buffer[8] = 0x01; }
+            { buffer[packetSize++] = 0x01; }
         else
-            { buffer[8] = 0x00; }
+            { buffer[packetSize++] = 0x00; }
 
-       //Variable Index starts at byte 9 
+       // Variable Index starts at byte 9 
         byte[] vibyte = BitConverter.GetBytes(varIndex);
-        for (int i = 9; i < 13; i++) { buffer[i] = vibyte[i-9]; }
+        for (int i = 9; i < 13; i++) { buffer[i] = vibyte[i-9]; packetSize++; }
 
-       //Variable Type starts at byte 13
+       // Variable Type starts at byte 13
         byte[] vtbyte = BitConverter.GetBytes(varIndex);
-        for (int i = 13; i < 17; i++) { buffer[i] = vtbyte[i - 13]; }
+        for (int i = 13; i < 17; i++) { buffer[i] = vtbyte[i - 13]; packetSize++;  }
 
-       //# of Dimensions starts at byte 17
+       // # of Dimensions starts at byte 17
         byte[] numDBytes = BitConverter.GetBytes(numDimen);
-        buffer[0] = numDBytes[0];
+        buffer[packetSize++] = numDBytes[0];
 
-       //Dimension Size starts at byte 18
+       // Dimension Size starts at byte 18
         for (int i = 0; i < numDimen; i++) {
             byte[] dimenBytes = BitConverter.GetBytes(sizeDimen[i]);
-            for (int x = 0; x < numDimen; x++) { buffer[x + packetSize] = numDBytes[x]; }
-            packetSize += 4;
+            for (int x = 0; x < numDimen; x++) { buffer[packetSize++] = dimenBytes[x]; }
         }
 
        //Variable Name Length(unknown start index)
@@ -255,39 +254,45 @@ public class SocketClient
         return packetSize;
     }
 
-    public static void StartIOSClient()
+    public static void StartIOSClient(int debug)
     {
-        byte[] buff_out = new byte[1024];
-        byte[] buff_in  = new byte[1024];
-
         try
         {
             IPAddress ip        = IPAddress.Parse("127.0.0.1");//host.AddressList[0];
             IPEndPoint remoteEP = new IPEndPoint(ip, 4420);
 
-            // Create a TCP/IP  socket.
             Socket sender = new Socket(ip.AddressFamily,
                 SocketType.Stream, ProtocolType.Tcp);
 
             try
             {
-                Console.WriteLine("attempt to connect to {0}",
-                    ip.ToString());
+                if (debug == 1) 
+                {
+                    Console.WriteLine("Attempt to connect to {0}",
+                        sender.RemoteEndPoint.ToString());
+                    sender.Connect(remoteEP);
+                }
+                else { sender.Connect(remoteEP); }
 
-                // Connect to Remote EndPoint
-                sender.Connect(remoteEP);
+                byte[] buff_o1 = new byte[16];
+                byte[] buff_o2 = new byte[40];
+                int msgSize = Initialize(buff_o1);
 
-                Console.WriteLine("Socket connected to {0}",
-                    sender.RemoteEndPoint.ToString());
+                //Array.Copy(buff_out, buff, msgSize);
+                int bytesSent = sender.Send(buff_o1);
 
-                // Send the data through the socket.
-                int msgSize = Initialize(buff_out);
+                int[] dimensions = { 1 };
 
-                byte[] buffer = new byte[msgSize];
-                Array.Copy(buff_out, msgSize, buffer, 0, msgSize);
-                Console.WriteLine(buff_out[0]);
+                msgSize   = addDict(buff_o2, 0, 0, 0, 1, dimensions, "testChar"); 
+                bytesSent = sender.Send(buff_o2);
 
-                int bytesSent = sender.Send(buffer);
+                if (debug == 1)
+                {
+                    for (int i = 0; i < msgSize; i++)
+                    {
+                        Console.WriteLine(buff_o1);
+                    }
+                }
 
                 //msgSize   = exitMsg(buff_out);
                 //bytesSent = sender.Send(buff_out); 
@@ -295,7 +300,6 @@ public class SocketClient
                 // Release the socket
                 sender.Shutdown(SocketShutdown.Both);
                 sender.Close();
-
             }
             catch (ArgumentNullException ane)
             {
