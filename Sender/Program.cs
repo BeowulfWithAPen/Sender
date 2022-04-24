@@ -24,33 +24,25 @@ public class SocketClient
         return 0;
     }
 
-
-
     public static void StartIOSClient(int debug)
     {
         try
         {
-            IPAddress ip        = IPAddress.Parse("127.0.0.1");//host.AddressList[0];
-            IPEndPoint remoteEP = new IPEndPoint(ip, 4420);
+            IPAddress ipDemo    = IPAddress.Parse("127.0.0.1"); //demo address 
+            IPAddress ipPhone   = IPAddress.Parse("127.0.0.1"); //phone address
+            IPEndPoint EP2Demo  = new IPEndPoint(ipDemo, 4425);
+            IPEndPoint EP2Phone = new IPEndPoint(ipPhone, 4420);
 
-            Socket sender = new Socket(ip.AddressFamily,
+            Socket sockDemo = new Socket(ipDemo.AddressFamily,
+                SocketType.Stream, ProtocolType.Tcp);
+
+            Socket sockPhone = new Socket(ipPhone.AddressFamily,
                 SocketType.Stream, ProtocolType.Tcp);
 
             try
             {
-                if (debug == 1) 
-                {
-                    Console.WriteLine("Attempt to connect to {0}",
-                        sender.RemoteEndPoint.ToString());
-                    sender.Connect(remoteEP);
-                }
-                else { sender.Connect(remoteEP); }
-
-                //bytesSent = sender.Send(buff_out); 
-
-                // Release the socket
-                sender.Shutdown(SocketShutdown.Both);
-                sender.Close();
+                sockDemo.Connect(EP2Demo);
+                sockPhone.Connect(EP2Phone);
             }
             catch (ArgumentNullException ane)
             {
