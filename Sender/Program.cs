@@ -35,7 +35,7 @@ namespace IOS_Middle_Man
                 byte[] phopneBuff = new byte[1024];
 
                 IPAddress ipDemo = IPAddress.Parse("127.0.0.1"); //demo address 
-                IPAddress ipPhone = IPAddress.Parse("192.168.254.254"); //phone address
+                IPAddress ipPhone = IPAddress.Parse("192.168.254.171"); //phone address
 
                 IPEndPoint EP2Demo = new IPEndPoint(ipDemo, 4420);
                 IPEndPoint EP2Phone = new IPEndPoint(ipPhone, 4425);
@@ -54,8 +54,8 @@ namespace IOS_Middle_Man
                     sockPhone.Connect(EP2Phone);
                     Console.WriteLine("No crash yet\n");
 
-                    sockDemo.Receive(demoBuff);
-                    ExtractMsg(demoBuff);
+                    //sockDemo.Receive(demoBuff);
+                    //ExtractMsg(demoBuff);
                 }
                 catch (ArgumentNullException ane)
                 {
@@ -196,6 +196,27 @@ namespace IOS_Middle_Man
             Console.WriteLine("----- Supplemental Message Receieved -----\n");
             return 0;
         }
+
+        public static int GetMsg(byte[] inBuffer)
+        {
+            byte[] header = new byte[4];
+            Array.Copy(inBuffer, 0, header, 0, 4);
+            switch (header[0])
+            {
+                case 0x49: Console.WriteLine("Initial received from phone\n"); break;
+                case 0x41: Console.WriteLine("AddDict received from phone\n"); break;
+                case 0x50: Console.WriteLine("AddVarUpdate received from phone\n"); break;
+                case 0x4F: Console.WriteLine("OpenVarUpdate received from phone\n"); break;
+                case 0x43: Console.WriteLine("CloseVarUpdate received from phone\n"); break;
+                case 0x51: Console.WriteLine("UpdateRequest received from phone\n"); break;
+                case 0x53: Console.WriteLine("SetVar received from phone\n"); break;
+                case 0x45: Console.WriteLine("Exit Msg received from phone\n"); break;
+                default: Console.WriteLine("Error in Header \n"); break;
+            }
+
+            return 0;
+        }
     }
+
 }
    
