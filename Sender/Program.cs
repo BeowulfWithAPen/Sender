@@ -32,9 +32,21 @@ namespace IOS_Middle_Man
             try
             {
                 byte[] demoBuff = new byte[1024];
-                byte[] phopneBuff = new byte[1024];
+                byte[] phoneBuff = new byte[1024];
 
-                IPAddress ipDemo = IPAddress.Parse("127.0.0.1"); //demo address 
+                TcpListener listen = new TcpListener(System.Net.IPAddress.Any,4420);
+                listen.Start();
+
+                while (true)
+                {
+                    TcpClient client = listen.AcceptTcpClient();
+                    NetworkStream netStream = client.GetStream();
+
+                    netStream.Read(phoneBuff, 0, 1024);
+                    GetMsg(phoneBuff);
+                }
+
+                /*IPAddress ipDemo = IPAddress.Parse("127.0.0.1"); //demo address 
                 IPAddress ipPhone = IPAddress.Parse("192.168.254.171"); //phone address
 
                 IPEndPoint EP2Demo = new IPEndPoint(ipDemo, 4420);
@@ -69,7 +81,7 @@ namespace IOS_Middle_Man
                 {
                     Console.WriteLine("Unexpected exception : {0}", e.ToString());
                 }
-
+*/
             }
             catch (Exception e)
             {
