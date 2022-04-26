@@ -37,11 +37,14 @@ namespace IOS_Middle_Man
                 TcpListener listen = new TcpListener(System.Net.IPAddress.Any,4420);
                 listen.Start();
 
+                Console.WriteLine(GetLocalIPAddress() + "\n");
+
                 while (true)
                 {
                     TcpClient client = listen.AcceptTcpClient();
                     NetworkStream netStream = client.GetStream();
 
+                    Console.WriteLine("Hello \n");
                     netStream.Read(phoneBuff, 0, 1024);
                     GetMsg(phoneBuff);
                 }
@@ -87,6 +90,19 @@ namespace IOS_Middle_Man
             {
                 Console.WriteLine(e.ToString());
             }
+        }
+
+        public static string GetLocalIPAddress()
+        {
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (var ip in host.AddressList)
+            {
+                if (ip.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    return ip.ToString();
+                }
+            }
+            throw new Exception("No network adapters with an IPv4 address in the system!");
         }
 
         public static int ExtractMsg(byte[] inBuffer)
