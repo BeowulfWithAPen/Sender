@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Text;
 //Important Note: I have assumed that Message Header and 'Message Length' var does not count towards the Message Body Length Variable
 
@@ -19,6 +20,20 @@ namespace IOS_Middle_Man
         Exit = 8,
     }
 
+    public struct VariableListEntry
+    {
+        public VariableListEntry(int index, string name, int type, byte arrayInfo) {
+            Index = index;
+            Name = name;
+            Type = type;
+            ArrayInfo = arrayInfo;
+        }
+        public int Index { get; set; }
+        public string Name;
+        public int Type;
+        public byte ArrayInfo;
+    }
+
     public class SocketClient
     {
         public static int Main(String[] args)
@@ -29,81 +44,351 @@ namespace IOS_Middle_Man
 
         public static void StartIOSClient(int debug)
         {
+            byte[] demoBuff = new byte[1024];
+
+            List<VariableListEntry> varList = new List<VariableListEntry>();
+            varList.Add(new VariableListEntry(0, "a", 0, 0x00));
+
+            IPAddress ipDemo = IPAddress.Parse("127.0.0.1");
+            IPEndPoint EP2Demo = new IPEndPoint(ipDemo, 4420);
+            Socket sockDemo = new Socket(ipDemo.AddressFamily,
+                SocketType.Stream, ProtocolType.Tcp);
+
+            Console.WriteLine("attempt to connect to Demohost\n");
+
             try
             {
-                byte[] demoBuff = new byte[1024];
-                byte[] phoneBuff = new byte[1024];
-
-                TcpListener listen = new TcpListener(System.Net.IPAddress.Any,4420);
-                listen.Start();
-
-                Console.WriteLine(GetLocalIPAddress() + "\n");
-
-                while (true)
-                {
-                    TcpClient client = listen.AcceptTcpClient();
-                    NetworkStream netStream = client.GetStream();
-
-                    Console.WriteLine("Hello \n");
-                    netStream.Read(phoneBuff, 0, 1024);
-                    GetMsg(phoneBuff);
-                }
-
-                /*IPAddress ipDemo = IPAddress.Parse("127.0.0.1"); //demo address 
-                IPAddress ipPhone = IPAddress.Parse("192.168.254.171"); //phone address
-
-                IPEndPoint EP2Demo = new IPEndPoint(ipDemo, 4420);
-                IPEndPoint EP2Phone = new IPEndPoint(ipPhone, 4425);
-
-                Socket sockDemo = new Socket(ipDemo.AddressFamily,
-                    SocketType.Stream, ProtocolType.Tcp);
-
-                Socket sockPhone = new Socket(ipPhone.AddressFamily,
-                    SocketType.Stream, ProtocolType.Tcp);
-
-                Console.WriteLine("attempt to connect...\n");
-
-                try
-                {
-                    sockDemo.Connect(EP2Demo);
-                    sockPhone.Connect(EP2Phone);
-                    Console.WriteLine("No crash yet\n");
-
-                    //sockDemo.Receive(demoBuff);
-                    //ExtractMsg(demoBuff);
-                }
-                catch (ArgumentNullException ane)
-                {
-                    Console.WriteLine("ArgumentNullException : {0}", ane.ToString());
-                }
-                catch (SocketException se)
-                {
-                    Console.WriteLine("SocketException : {0}", se.ToString());
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine("Unexpected exception : {0}", e.ToString());
-                }
-*/
+                sockDemo.Connect(EP2Demo);
+                Console.WriteLine("Connected to DemoHost Successfully\n");
+            }
+            catch (ArgumentNullException ane)
+            {
+                Console.WriteLine("ArgumentNullException : {0}", ane.ToString());
+            }
+            catch (SocketException se)
+            {
+                Console.WriteLine("SocketException : {0}", se.ToString());
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.ToString());
+                Console.WriteLine("Unexpected exception : {0}", e.ToString());
             }
+
+            int msgSize = Initialize(demoBuff);
+            byte[] msg0 = new byte[msgSize];
+            Array.Copy(demoBuff, msg0, msgSize);
+            sockDemo.Send(msg0);
+            Thread.Sleep(500);
+
+            msgSize = updateRequest(demoBuff, 0);
+            byte[] msg1 = new byte[msgSize];
+            Array.Copy(demoBuff, msg1, msgSize);
+            sockDemo.Send(msg1);
+            Thread.Sleep(500);
+
+            msgSize = addVarUpdate(demoBuff, 0, 1, 1, "a", 1, varList);
+            byte[] msg2 = new byte[msgSize];
+            Array.Copy(demoBuff, msg2, msgSize);
+            sockDemo.Send(msg2);
+            Thread.Sleep(500);
+
+            msgSize = openVarUpdatePage(demoBuff, 0, 0);
+            byte[] msg3 = new byte[msgSize];
+            Array.Copy(demoBuff, msg3, msgSize);
+            sockDemo.Send(msg3);
+            Thread.Sleep(500);
+
+            msgSize = closeVarUpdatePage(demoBuff, 0, 0);
+            byte[] msg4 = new byte[msgSize];
+            Array.Copy(demoBuff, msg4, msgSize);
+            sockDemo.Send(msg4);
+            Thread.Sleep(500);
+
+            msgSize = addDict(demoBuff, 0, varList[0]);
+            byte[] msg5 = new byte[msgSize];
+            Array.Copy(demoBuff, msg5, msgSize);
+            sockDemo.Send(msg5);
+            Thread.Sleep(500);
+
+            msgSize = setVar(demoBuff, 0, 0, 1, msg5, varList[0]);
+            byte[] msg6 = new byte[msgSize];
+            Array.Copy(demoBuff, msg6, msgSize);
+            sockDemo.Send(msg6);
+            Thread.Sleep(500);
+
+            msgSize = exitMsg(demoBuff);
+            byte[] msg7 = new byte[msgSize];
+            Array.Copy(demoBuff, msg7, msgSize);
+            sockDemo.Send(msg7);
+            Thread.Sleep(500);
         }
 
-        public static string GetLocalIPAddress()
+        public static int fillHeader(byte[] buffer, msg_Type msgType, int length)
         {
-            var host = Dns.GetHostEntry(Dns.GetHostName());
-            foreach (var ip in host.AddressList)
+            switch (msgType)
             {
-                if (ip.AddressFamily == AddressFamily.InterNetwork)
-                {
-                    return ip.ToString();
-                }
+                case msg_Type.Initial: buffer[0] = 0x49; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+                case msg_Type.AddDict: buffer[0] = 0x41; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+                case msg_Type.AddVarUpdate: buffer[0] = 0x50; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+                case msg_Type.OpenVarUpdate: buffer[0] = 0x4F; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+                case msg_Type.CloseVarUpdate: buffer[0] = 0x43; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+                case msg_Type.UpdateRequest: buffer[0] = 0x51; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+                case msg_Type.SetVar: buffer[0] = 0x53; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+                case msg_Type.Exit: buffer[0] = 0x45; buffer[1] = 0x00; buffer[2] = 0x00; buffer[3] = 0x00; break;
+                default: break;
             }
-            throw new Exception("No network adapters with an IPv4 address in the system!");
+
+            if (msgType == msg_Type.Initial) { return 1; }
+            if (length > 1024) { return -1; }
+
+            length = length - 8; // accounts for header & length 
+            byte[] lenBytes = BitConverter.GetBytes(length);
+            for (int i = 4; i < 8; i++)
+            {
+                buffer[i] = lenBytes[i - 4];
+            }
+            return 1;
         }
+
+        public static int updateRequest(byte[] buffer, int listType)
+        {
+            int packetSize = 8;
+
+            buffer[packetSize++] = (byte)listType;
+
+            if (fillHeader(buffer, msg_Type.UpdateRequest, packetSize) < 0) { return -1; }
+
+            return packetSize;
+        }
+
+        public static int Initialize(byte[] buffer)
+        {
+            //  Header                  Byte Order  Floating Point          Byte  Spare                   Trailer
+            //{ 0x49, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x49 };
+
+            float ftype = 1;
+            short shtype = 1;
+            byte[] fbyte = BitConverter.GetBytes(ftype);
+            byte[] shbyte = BitConverter.GetBytes(shtype);
+
+            //Header
+            buffer[0] = 0x49;
+
+            for (int i = 1; i < 4; i++)
+            {
+                buffer[i] = 0x00;
+            }
+
+            //Byte Order
+            for (int i = 4; i < 6; i++)
+            {
+                buffer[i] = shbyte[i - 4];
+            }
+
+            //floating point
+            for (int i = 6; i < 10; i++)
+            {
+                buffer[i] = fbyte[i - 6];
+            }
+
+            //Integer Size
+            byte[] isize = BitConverter.GetBytes(sizeof(int));
+            buffer[10] = isize[0];
+
+            //Spare & Trailer
+            for (int i = 11; i < 15; i++)
+            {
+                buffer[i] = 0x00;
+            }
+            buffer[15] = 0x49;
+            return 16;
+        }
+
+        public static int addVarUpdate(byte[] buffer, int listType, int pageId, int pageNameLen, string pageName, int numVars, List<VariableListEntry> variables)
+        {
+            int packetSize = 8;
+
+            // List Type
+            if (listType == 1)
+            { buffer[packetSize++] = 0x01; }
+            else
+            { buffer[packetSize++] = 0x00; }
+
+            // Page ID
+            byte[] pidBytes = BitConverter.GetBytes(pageId);
+            for (int i = 0; i < 4; i++) { buffer[packetSize++] = pidBytes[i]; }
+
+            // Page Name Length
+            byte[] pnlBytes = BitConverter.GetBytes(pageNameLen);
+            for (int i = 0; i < 4; i++) { buffer[packetSize++] = pnlBytes[i]; }
+
+            // Page Name
+            for (int i = 0; i < pageName.Length; i++)
+            { buffer[packetSize++] = (byte)pageName[i]; }
+
+            // Number of Variables
+            byte[] nvBytes = BitConverter.GetBytes(numVars);
+            for (int i = 0; i < 4; i++) { buffer[packetSize++] = nvBytes[i]; }
+
+            // Append Variables from variables...
+            for (int i = 0; i < numVars; i++)
+            {
+                byte[] viByte = BitConverter.GetBytes(variables[i].Index);
+                for (int x = 0; x < 4; x++) { buffer[packetSize++] = viByte[x]; }
+
+                byte[] vtByte = BitConverter.GetBytes(variables[i].Type);
+                for (int x = 0; x < 4; x++) { buffer[packetSize++] = vtByte[x]; }
+
+                byte[] ndByte = BitConverter.GetBytes(1);
+                for (int x = 0; x < 1; x++) { buffer[packetSize++] = ndByte[x]; }
+
+                byte[] sdByte = BitConverter.GetBytes(1);
+                for (int x = 0; x < 4; x++) { buffer[packetSize++] = sdByte[x]; }
+                //for (int x = 0; x < numDimen; x++)
+                //{
+                //   byte[] sdByte = BitConverter.GetBytes(sizeDimen[x]);
+                //    for (int y; y < 4; y++) { }
+                //}
+
+                string tempStr = variables[i].Name;
+                int tempSze = tempStr.Length;
+                byte[] nlByte = BitConverter.GetBytes(tempSze);
+                for (int x = 0; x < 1; x++) { buffer[packetSize++] = nlByte[x]; }
+
+                for (int x = 0; x < tempSze; x++) { buffer[packetSize++] = (byte)tempStr[x]; }
+
+            }
+
+            if (fillHeader(buffer, msg_Type.AddVarUpdate, packetSize) < 0) { return -1; }
+
+            return packetSize;
+        }
+
+        public static int openVarUpdatePage(byte[] buffer, int listType, int VarUpdatePageID)
+        {
+            int packetSize = 8;
+
+            // List Type
+            if (listType == 1)
+            { buffer[packetSize++] = 0x01; }
+            else
+            { buffer[packetSize++] = 0x00; }
+
+            // Variable Update Page ID
+            byte[] vuBytes = BitConverter.GetBytes(VarUpdatePageID);
+            for (int i = 0; i < 4; i++) { buffer[packetSize++] = vuBytes[i]; }
+
+            if (fillHeader(buffer, msg_Type.OpenVarUpdate, packetSize) < 0) { return -1; }
+
+            return packetSize;
+        }
+
+        public static int closeVarUpdatePage(byte[] buffer, int listType, int VarUpdatePageID)
+        {
+            int packetSize = 8;
+
+            // List Type
+            if (listType == 1)
+            { buffer[packetSize++] = 0x01; }
+            else
+            { buffer[packetSize++] = 0x00; }
+
+            // Variable Update Page ID
+            byte[] vuBytes = BitConverter.GetBytes(VarUpdatePageID);
+            for (int i = 0; i < 4; i++) { buffer[packetSize++] = vuBytes[i]; }
+
+            if (fillHeader(buffer, msg_Type.CloseVarUpdate, packetSize) < 0) { return -1; }
+
+            return packetSize;
+        }
+
+        public static int addDict(byte[] buffer, int listType, VariableListEntry variable)
+        {
+            int packetSize = 8;
+
+            // ERROR Handling
+            //if (numDimen != sizeDimen.Length) { return -1; }
+            if (variable.Name.Length > 15) { return -1; }
+
+            // List Type starts at byte 8
+            if (listType == 1)
+            { buffer[packetSize++] = 0x01; }
+            else
+            { buffer[packetSize++] = 0x00; }
+
+            // Variable Index starts at byte 9 
+            byte[] vibyte = BitConverter.GetBytes(variable.Index);
+            for (int i = 9; i < 13; i++) { buffer[i] = vibyte[i - 9]; packetSize++; }
+
+            // Variable Type starts at byte 13
+            byte[] vtbyte = BitConverter.GetBytes(variable.Type);
+            for (int i = 13; i < 17; i++) { buffer[i] = vtbyte[i - 13]; packetSize++; }
+
+            // Number of Dimensions
+            byte[] ndByte = BitConverter.GetBytes(1);
+            for (int x = 0; x < 1; x++) { buffer[packetSize++] = ndByte[x]; }
+
+            byte[] sdByte = BitConverter.GetBytes(1);
+            for (int x = 0; x < 4; x++) { buffer[packetSize++] = sdByte[x]; }
+
+            //Variable Name (unknown start index)
+            for (int i = 0; i < 1; i++)
+            { buffer[packetSize++] = Convert.ToByte(variable.Name.Length); }
+
+            //Variable Name (unknown start index)
+            for (int i = 0; i < variable.Name.Length; i++)
+            { buffer[packetSize++] = Convert.ToByte(variable.Name[i]); }
+
+            if (fillHeader(buffer, msg_Type.AddDict, packetSize) < 0) { return -1; }
+
+            return packetSize;
+        }
+
+        public static int setVar(byte[] buffer, int listType, int varIndex, int valueSize, byte[] newArrayData, VariableListEntry variable)
+        {
+            int packetSize = 8;
+
+            // List Type
+            if (listType == 1)
+            { buffer[packetSize++] = 0x01; }
+            else
+            { buffer[packetSize++] = 0x00; }
+
+            // Variable Index 
+            byte[] viBytes = BitConverter.GetBytes(varIndex);
+            for (int i = 0; i < 4; i++) { buffer[packetSize++] = viBytes[i]; }
+
+            // Number of Dimensions
+            byte[] ndByte = BitConverter.GetBytes(1);
+            for (int x = 0; x < 1; x++) { buffer[packetSize++] = ndByte[x]; }
+
+            byte[] sdByte = BitConverter.GetBytes(1);
+            for (int x = 0; x < 4; x++) { buffer[packetSize++] = sdByte[x]; }
+
+            // Value Size
+            byte[] valsBytes = BitConverter.GetBytes(valueSize);
+            for (int i = 0; i < 4; i++) { buffer[packetSize++] = valsBytes[i]; }
+
+            // Value
+            for (int x = 0; x < newArrayData.Length; x++)
+            {
+                buffer[packetSize++] = newArrayData[x];
+            }
+
+            if (fillHeader(buffer, msg_Type.SetVar, packetSize) < 0) { return -1; }
+
+            return packetSize;
+        }
+
+        public static int exitMsg(byte[] buffer)
+        {
+            int packetSize = 8;
+
+            if (fillHeader(buffer, msg_Type.Exit, packetSize) < 0) { return -1; }
+
+            return packetSize;
+        }
+
 
         public static int ExtractMsg(byte[] inBuffer)
         {
